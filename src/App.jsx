@@ -1,121 +1,111 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from 'react';
+import { usePlaces } from './hooks/usePlaces.js';
+import { useSaved } from './hooks/useSaved.js';
+import MapView from './components/Map/MapView.jsx';
+import PlaceDetail from './components/Place/PlaceDetail.jsx';
+import WriteReview from './components/Review/WriteReview.jsx';
+import SavedPlaces from './components/Saved/SavedPlaces.jsx';
+import BottomNav from './components/Layout/BottomNav.jsx';
+import Toast from './components/UI/Toast.jsx';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [currentScreen, setCurrentScreen] = useState('map');
+  const [currentPlaceId, setCurrentPlaceId] = useState(null);
+  const [placeTab, setPlaceTab] = useState('overview');
+  const [toast, setToast] = useState({ visible: false, message: '' });
+
+  const placesData = usePlaces();
+  const savedData = useSaved();
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg });
+  };
+
+  const handlePlaceClick = (id) => {
+    setCurrentPlaceId(id);
+    setCurrentScreen('place');
+    setPlaceTab('overview');
+  };
+
+  const handleReviewSubmit = (review) => {
+    placesData.addReview(currentPlaceId, review);
+    setCurrentScreen('place');
+    setPlaceTab('reviews');
+    showToast('Review submitted successfully!');
+  };
+
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'map':
+        return (
+          <div className="map-screen">
+            <MapView places={placesData.places} onPlaceClick={handlePlaceClick} />
+            <div className="bottom-sheet">
+              <h3>Nearby Places</h3>
+              <div className="place-cards">
+                {placesData.places.map(place => (
+                  <div key={place.id} className="place-card" onClick={() => handlePlaceClick(place.id)}>
+                    <span className="face">{place.face}</span>
+                    <div>
+                      <h4>{place.name}</h4>
+                      <p>{place.addr}</p>
+                      <p>Score: {place.score}/5</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      case 'place':
+        const place = placesData.getPlace(currentPlaceId);
+        return place ? (
+          <PlaceDetail
+            place={place}
+            onReview={() => setCurrentScreen('review')}
+            onSave={() => savedData.toggleSave(currentPlaceId)}
+            isSaved={savedData.isSaved(currentPlaceId)}
+            initialTab={placeTab}
+          />
+        ) : null;
+      case 'review':
+        const reviewPlace = placesData.getPlace(currentPlaceId);
+        return reviewPlace ? (
+          <WriteReview
+            locationName={reviewPlace.name}
+            onSubmit={handleReviewSubmit}
+            onBack={() => setCurrentScreen('place')}
+          />
+        ) : null;
+      case 'saved':
+        return (
+          <SavedPlaces
+            places={placesData.places}
+            savedIds={savedData.savedIds}
+            onUnsave={savedData.toggleSave}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <div className="app">
+      {renderScreen()}
+      <BottomNav
+        currentScreen={currentScreen}
+        onScreenChange={setCurrentScreen}
+        savedCount={savedData.savedIds.size}
+      />
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
+    </div>
+  );
 }
 
-export default App
+export default App;
