@@ -6,8 +6,8 @@ export const MAPS_CONFIG =
 
 export const DEFAULT_CENTER = 
 {
-  lat: 37.7749,
-  lng: -122.4194, // San Francisco — change to your city
+  lat: 34.0459,
+  lng: -118.2552, // LAAC Coordinates
 }
 
 export const DEFAULT_ZOOM = 14
