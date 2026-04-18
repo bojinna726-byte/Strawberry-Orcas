@@ -1,137 +1,210 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import StarRating from '../UI/StarRating.jsx';
 import CriteriaButtons from '../UI/CriteriaButtons.jsx';
-import { calcPlatformScore } from '../../utils/scoring.js';
+import PhotoUpload from '../UI/PhotoUpload.jsx';
+import { calcPlatformScore, getScoreLabel, getScoreColor, getScoreGradient } from '../../utils/scoring.js';
 
-const POSITIVE_CRITERIA = [
-  "Accessible entrance", "Wide aisles", "Good lighting", "Clear signage",
-  "Ramp access", "Elevator", "Parking", "Restrooms"
-];
+const SEC = {
+  fontSize: 10, fontWeight: 700,
+  color: 'var(--text-3)', letterSpacing: '0.07em', marginBottom: 8,
+};
 
-const NEGATIVE_CRITERIA = [
-  "Steps", "Narrow doors", "Poor lighting", "Confusing layout",
-  "No ramp", "Broken elevator", "No parking", "Inaccessible restrooms"
-];
+function WriteReview({ locationName, locationAddr, onSubmit, onBack }) {
+  const [stars,       setStars]       = useState(0);
+  const [selectedPos, setSelectedPos] = useState(new Set());
+  const [selectedNeg, setSelectedNeg] = useState(new Set());
+  const [comment,     setComment]     = useState('');
+  const [photos,      setPhotos]      = useState([]);
 
-const AI_TAGS = [
-  "Clean", "Modern", "Spacious", "Well-lit", "Crowded", "Outdated", "Noisy", "Quiet"
-];
+  const togglePos = (c) => setSelectedPos((prev) => {
+    const next = new Set(prev);
+    next.has(c) ? next.delete(c) : next.add(c);
+    return next;
+  });
+  const toggleNeg = (c) => setSelectedNeg((prev) => {
+    const next = new Set(prev);
+    next.has(c) ? next.delete(c) : next.add(c);
+    return next;
+  });
 
-function WriteReview({ locationName, onSubmit, onBack }) {
-  const [stars, setStars] = useState(0);
-  const [selectedPos, setSelectedPos] = useState([]);
-  const [selectedNeg, setSelectedNeg] = useState([]);
-  const [comment, setComment] = useState('');
-  const [photos, setPhotos] = useState([]);
-
-  const platformScore = calcPlatformScore(selectedPos.length, selectedNeg.length);
-
-  const handlePhotoUpload = (event, isCapture = false) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target.result;
-        const randomTags = AI_TAGS.sort(() => 0.5 - Math.random()).slice(0, 3);
-        setPhotos(prev => [...prev, { base64, tags: randomTags }]);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removePhoto = (index) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
-  };
+  const platformScore = calcPlatformScore(selectedPos.size, selectedNeg.size);
+  const scoreColor = getScoreColor(platformScore);
+  const scoreFace = platformScore === null ? '—'
+    : platformScore >= 4.5 ? '😊'
+    : platformScore >= 2.5 ? '😐' : '😞';
 
   const handleSubmit = () => {
-    const reviewData = {
-      name: "Anonymous User", // Could be from props
-      init: "A",
-      date: new Date().toLocaleDateString(),
+    if (!stars) { alert('Please add a star rating first'); return; }
+    onSubmit({
+      name:          'You',
+      init:          'YO',
+      date:          'Just now',
       stars,
-      text: comment,
-      imgs: photos.map(p => p.base64),
-      critPos: selectedPos,
-      critNeg: selectedNeg
-    };
-    onSubmit(reviewData);
-    onBack();
+      text:          comment.trim() || 'No comment added.',
+      imgs:          photos,
+      critPos:       [...selectedPos],
+      critNeg:       [...selectedNeg],
+      platformScore,
+    });
   };
 
   return (
-    <div className="write-review">
-      <header>
-        <h2>Review {locationName}</h2>
-      </header>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
 
-      <div className="rating-section">
-        <label>Rating:</label>
-        <StarRating rating={stars} onRatingChange={setStars} />
-      </div>
-
-      <CriteriaButtons
-        positiveCriteria={POSITIVE_CRITERIA}
-        negativeCriteria={NEGATIVE_CRITERIA}
-        selectedPos={selectedPos}
-        selectedNeg={selectedNeg}
-        onPosChange={setSelectedPos}
-        onNegChange={setSelectedNeg}
-      />
-
-      <div className="score-preview">
-        <p>Platform Score Preview: {platformScore.toFixed(1)}/5</p>
-      </div>
-
-      <div className="comment-section">
-        <label>Comments:</label>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="Share your experience..."
-        />
-      </div>
-
-      <div className="photo-upload">
-        <label>Photos:</label>
-        <div className="upload-buttons">
-          <label className="upload-btn">
-            📷 Take Photo
-            <input
-              type="file"
-              capture="environment"
-              accept="image/*"
-              onChange={(e) => handlePhotoUpload(e, true)}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <label className="upload-btn">
-            📁 Upload Photo
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              style={{ display: 'none' }}
-            />
-          </label>
+      {/* Header */}
+      <div style={{
+        height: 54, padding: '0 16px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: 'var(--surface)', flexShrink: 0,
+      }}>
+        <button
+          onClick={onBack}
+          aria-label="Go back"
+          style={{
+            width: 32, height: 32, background: 'var(--surface-2)',
+            borderRadius: 'var(--r-sm)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, color: 'var(--text-2)', cursor: 'pointer', border: 'none',
+          }}
+        >‹</button>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.2px' }}>
+            Write Review
+          </div>
+          {locationName && (
+            <div style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {locationName}{locationAddr ? ` · ${locationAddr}` : ''}
+            </div>
+          )}
         </div>
-        <div className="photo-thumbnails">
-          {photos.map((photo, index) => (
-            <div key={index} className="thumbnail">
-              <img src={photo.base64} alt={`Upload ${index + 1}`} />
-              <button onClick={() => removePhoto(index)}>❌</button>
-              <div className="ai-tags">
-                {photo.tags.map((tag, i) => (
-                  <span key={i} className="tag">#{tag}</span>
-                ))}
+      </div>
+
+      {/* Scrollable form */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Star rating */}
+        <div>
+          <p style={SEC}>YOUR RATING</p>
+          <StarRating value={stars} onChange={setStars} />
+        </div>
+
+        {/* Criteria */}
+        <div>
+          <p style={SEC}>ACCESSIBILITY CRITERIA</p>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500, marginBottom: 12 }}>
+            Tap all that apply — platform score calculates automatically
+          </p>
+          <CriteriaButtons
+            selectedPos={selectedPos}
+            selectedNeg={selectedNeg}
+            onTogglePos={togglePos}
+            onToggleNeg={toggleNeg}
+          />
+        </div>
+
+        {/* Platform score preview */}
+        <div>
+          <p style={SEC}>PLATFORM SCORE</p>
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              padding: 14,
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 700, color: scoreColor, letterSpacing: '-0.5px' }}>
+              {platformScore !== null ? platformScore.toFixed(1) : '—'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)', marginBottom: 2 }}>
+                {platformScore !== null ? getScoreLabel(platformScore) : 'Select criteria above'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 500 }}>
+                {selectedPos.size > 0 || selectedNeg.size > 0
+                  ? `${selectedPos.size} positive · ${selectedNeg.size} barrier${selectedNeg.size !== 1 ? 's' : ''}`
+                  : 'Score updates as you tap'}
+              </div>
+              <div style={{ height: 5, background: 'var(--surface-3)', borderRadius: 3, marginTop: 7, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 3,
+                  width: platformScore !== null ? `${(platformScore / 5) * 100}%` : '0%',
+                  background: getScoreGradient(platformScore),
+                  transition: 'width 0.35s ease',
+                }} />
               </div>
             </div>
-          ))}
+            <div style={{ fontSize: 28, lineHeight: 1 }}>{scoreFace}</div>
+          </div>
         </div>
-      </div>
 
-      <div className="actions">
-        <button onClick={onBack}>Cancel</button>
-        <button onClick={handleSubmit} disabled={stars === 0}>Submit Review</button>
+        {/* Comment */}
+        <div>
+          <p style={SEC}>COMMENTS</p>
+          <textarea
+            rows={3}
+            placeholder="Describe the accessibility experience..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            aria-label="Review comments"
+            style={{
+              background: 'var(--surface)',
+              border: '1.5px solid var(--border-2)',
+              borderRadius: 'var(--r-md)',
+              padding: '11px 13px',
+              fontSize: 13, color: 'var(--text-1)',
+              width: '100%', resize: 'none',
+              fontFamily: 'var(--font)',
+              transition: 'border-color var(--t)',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--green)';
+              e.target.style.boxShadow = '0 0 0 3px rgba(22,163,74,0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--border-2)';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
+        </div>
+
+        {/* Photos */}
+        <div style={{ position: 'relative' }}>
+          <p style={SEC}>PHOTOS</p>
+          <PhotoUpload
+            photos={photos}
+            onAdd={(url) => setPhotos((p) => [...p, url])}
+            onRemove={(i) => setPhotos((p) => p.filter((_, idx) => idx !== i))}
+          />
+        </div>
+
+        {/* Submit */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg,#22c55e,#16a34a)',
+            color: 'white', border: 'none',
+            borderRadius: 'var(--r-md)',
+            padding: 14, fontSize: 15, fontWeight: 700,
+            cursor: 'pointer', letterSpacing: '0.01em',
+            boxShadow: '0 4px 14px rgba(22,163,74,0.3)',
+            fontFamily: 'var(--font)',
+            transition: 'filter var(--t), transform var(--t)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.06)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}
+          onMouseDown={(e)  => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+          onMouseUp={(e)    => { e.currentTarget.style.transform = 'scale(1)'; }}
+        >
+          Submit Review
+        </button>
+
       </div>
     </div>
   );

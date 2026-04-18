@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { usePlaces } from './hooks/usePlaces.js';
 import { useSaved } from './hooks/useSaved.js';
+import AppShell from './components/Layout/AppShell.jsx';
 import MapView from './components/Map/MapView.jsx';
 import PlaceDetail from './components/Place/PlaceDetail.jsx';
 import WriteReview from './components/Review/WriteReview.jsx';
 import SavedPlaces from './components/Saved/SavedPlaces.jsx';
-import BottomNav from './components/Layout/BottomNav.jsx';
 import Toast from './components/UI/Toast.jsx';
 import './App.css';
+
+const getScoreLabel = (score) =>
+  score >= 4.5 ? 'Highly Accessible' : score >= 2.5 ? 'Moderately Accessible' : 'Poor Accessibility';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('map');
   const [currentPlaceId, setCurrentPlaceId] = useState(null);
+  const [externalPlace, setExternalPlace] = useState(null);
   const [placeTab, setPlaceTab] = useState('overview');
   const [toast, setToast] = useState({ visible: false, message: '' });
 
@@ -24,15 +28,36 @@ function App() {
 
   const handlePlaceClick = (id) => {
     setCurrentPlaceId(id);
+    setExternalPlace(null);
     setCurrentScreen('place');
     setPlaceTab('overview');
   };
 
+  const handleExternalPlaceClick = (googlePlace) => {
+    const existing = placesData.places.find(
+      (p) => p.googlePlaceId === googlePlace.googlePlaceId
+    );
+    if (existing) {
+      handlePlaceClick(existing.id);
+    } else {
+      setExternalPlace(googlePlace);
+      setCurrentPlaceId(null);
+      setCurrentScreen('review');
+    }
+  };
+
   const handleReviewSubmit = (review) => {
-    placesData.addReview(currentPlaceId, review);
-    setCurrentScreen('place');
-    setPlaceTab('reviews');
-    showToast('Review submitted successfully!');
+    if (externalPlace) {
+      placesData.addPlace({ ...externalPlace, review });
+      setExternalPlace(null);
+      setCurrentScreen('map');
+      showToast('Place added and review submitted!');
+    } else {
+      placesData.addReview(currentPlaceId, review);
+      setCurrentScreen('place');
+      setPlaceTab('reviews');
+      showToast('Review submitted successfully!');
+    }
   };
 
   const renderScreen = () => {
@@ -40,12 +65,24 @@ function App() {
       case 'map':
         return (
           <div className="map-screen">
-            <MapView places={placesData.places} onPlaceClick={handlePlaceClick} />
+            <MapView
+              places={placesData.places}
+              onPlaceClick={handlePlaceClick}
+              onExternalPlaceClick={handleExternalPlaceClick}
+            />
             <div className="bottom-sheet">
               <h3>Nearby Places</h3>
               <div className="place-cards">
                 {placesData.places.map(place => (
-                  <div key={place.id} className="place-card" onClick={() => handlePlaceClick(place.id)}>
+                  <div
+                    key={place.id}
+                    className="place-card"
+                    onClick={() => handlePlaceClick(place.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && handlePlaceClick(place.id)}
+                    aria-label={`${place.name}, ${getScoreLabel(place.score)}`}
+                  >
                     <span className="face">{place.face}</span>
                     <div>
                       <h4>{place.name}</h4>
@@ -59,23 +96,30 @@ function App() {
           </div>
         );
       case 'place':
-        const place = placesData.getPlace(currentPlaceId);
-        return place ? (
+        return (
           <PlaceDetail
-            place={place}
+            placeId={currentPlaceId}
+            places={placesData.places}
+            onBack={() => setCurrentScreen('map')}
             onReview={() => setCurrentScreen('review')}
-            onSave={() => savedData.toggleSave(currentPlaceId)}
-            isSaved={savedData.isSaved(currentPlaceId)}
+            onSave={savedData.toggleSave}
+            isSaved={savedData.isSaved}
             initialTab={placeTab}
           />
-        ) : null;
+        );
       case 'review':
-        const reviewPlace = placesData.getPlace(currentPlaceId);
-        return reviewPlace ? (
+        const locationName = externalPlace
+          ? externalPlace.name
+          : placesData.getPlace(currentPlaceId)?.name;
+        const locationAddr = externalPlace
+          ? externalPlace.addr
+          : placesData.getPlace(currentPlaceId)?.addr;
+        return locationName ? (
           <WriteReview
-            locationName={reviewPlace.name}
+            locationName={locationName}
+            locationAddr={locationAddr}
             onSubmit={handleReviewSubmit}
-            onBack={() => setCurrentScreen('place')}
+            onBack={() => setCurrentScreen(externalPlace ? 'map' : 'place')}
           />
         ) : null;
       case 'saved':
@@ -84,6 +128,7 @@ function App() {
             places={placesData.places}
             savedIds={savedData.savedIds}
             onUnsave={savedData.toggleSave}
+            onPlaceClick={handlePlaceClick}
           />
         );
       default:
@@ -92,19 +137,18 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <AppShell
+      screen={currentScreen}
+      setScreen={setCurrentScreen}
+      savedCount={savedData.savedIds.size}
+    >
       {renderScreen()}
-      <BottomNav
-        currentScreen={currentScreen}
-        onScreenChange={setCurrentScreen}
-        savedCount={savedData.savedIds.size}
-      />
       <Toast
         message={toast.message}
         visible={toast.visible}
         onHide={() => setToast({ ...toast, visible: false })}
       />
-    </div>
+    </AppShell>
   );
 }
 
