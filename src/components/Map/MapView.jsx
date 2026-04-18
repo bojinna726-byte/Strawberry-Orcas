@@ -1,22 +1,21 @@
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { useState } from 'react';
+import { useJsApiLoader, GoogleMap, Marker } from '@react-google-maps/api';
+import { useState, useRef } from 'react';
+import { MAPS_CONFIG, DEFAULT_CENTER, DEFAULT_ZOOM, MAP_OPTIONS } from '../../lib/googleMaps';
 import './../../styles/map.css';
 
-function Search({ onSearch }) {
+function Search({ mapRef }) {
   const [query, setQuery] = useState('');
-  const map = useMap();
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json`
       );
       const data = await response.json();
       if (data.length > 0) {
         const { lat, lon } = data[0];
-        map.flyTo([parseFloat(lat), parseFloat(lon)], 16);
+        mapRef.current?.panTo({ lat: parseFloat(lat), lng: parseFloat(lon) });
       }
     } catch (error) {
       console.error('Geocoding error:', error);
@@ -24,9 +23,7 @@ function Search({ onSearch }) {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
+    if (e.key === 'Enter') handleSearch();
   };
 
   return (
@@ -47,34 +44,36 @@ function Search({ onSearch }) {
 }
 
 function MapView({ places, onPlaceClick }) {
-  const sfCenter = [37.7749, -122.4194];
+  const mapRef = useRef(null);
+
+  const { isLoaded, loadError } = useJsApiLoader(MAPS_CONFIG);
+
+  if (loadError) return <div className="map-error">Failed to load map.</div>;
+  if (!isLoaded) return <div className="map-loading"><span className="spinner" /> Loading map...</div>;
 
   return (
-    <MapContainer center={sfCenter} zoom={14} className="leaflet-container">
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
-      <Search />
-      {places.map((place) => {
-        const icon = L.divIcon({
-          html: place.face,
-          className: 'custom-marker',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
-        });
-        return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <Search mapRef={mapRef} />
+      <GoogleMap
+        mapContainerClassName="leaflet-container"
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        options={MAP_OPTIONS}
+        onLoad={(map) => { mapRef.current = map; }}
+      >
+        {places.map((place) => (
           <Marker
             key={place.id}
-            position={[place.lat, place.lng]}
-            icon={icon}
-            eventHandlers={{
-              click: () => onPlaceClick(place.id),
+            position={{ lat: place.lat, lng: place.lng }}
+            label={{
+              text: place.face,
+              fontSize: '22px',
             }}
+            onClick={() => onPlaceClick(place.id)}
           />
-        );
-      })}
-    </MapContainer>
+        ))}
+      </GoogleMap>
+    </div>
   );
 }
 
